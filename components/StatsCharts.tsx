@@ -10,25 +10,12 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from "recharts";
-
-type Activity = {
-  id: number;
-  name: string;
-  start_date_local: string;
-  distance: number;
-  total_elevation_gain: number;
-  average_heartrate?: number | null;
-  suffer_score?: number | null;
-  average_watts?: number | null;
-};
+import { StravaActivity } from "@/types/strava";
+import { formatShortDate } from "@/lib/format";
 
 const LIME = "#c8ff4d";
 const CORAL = "#ff6b4a";
 const SKY = "#6ec6ff";
-
-function shortDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 const tooltipStyle = {
   background: "#232a2f",
@@ -155,24 +142,24 @@ function fmt(n: number) {
   );
 }
 
-export default function StatsCharts({ activities }: { activities: Activity[] }) {
+export default function StatsCharts({ activities }: { activities: StravaActivity[] }) {
   // Oldest -> newest for left-to-right chart reading.
   const sorted = [...activities].sort(
     (a, b) => new Date(a.start_date_local).getTime() - new Date(b.start_date_local).getTime()
   );
 
   const elevationData = sorted.map((a) => ({
-    date: shortDate(a.start_date_local),
+    date: formatShortDate(a.start_date_local),
     value: Math.round(a.total_elevation_gain),
   }));
 
   const hrData = sorted.map((a) => ({
-    date: shortDate(a.start_date_local),
+    date: formatShortDate(a.start_date_local),
     value: a.average_heartrate ? Math.round(a.average_heartrate) : null,
   }));
 
   const effortData = sorted.map((a) => ({
-    date: shortDate(a.start_date_local),
+    date: formatShortDate(a.start_date_local),
     value: a.suffer_score ?? null,
   }));
 

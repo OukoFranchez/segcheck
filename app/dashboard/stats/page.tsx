@@ -1,23 +1,17 @@
 import { redirect } from "next/navigation";
 import { isLoggedIn, stravaFetch } from "@/lib/strava";
 import StatsCharts from "@/components/StatsCharts";
-
-function km(meters: number) {
-  return (meters / 1000).toFixed(1);
-}
-
-function hours(seconds: number) {
-  return (seconds / 3600).toFixed(1);
-}
+import { StravaAthlete, StravaAthleteStats, StravaActivity } from "@/types/strava";
+import { formatKm, formatHours } from "@/lib/format";
 
 export default async function StatsPage() {
   if (!(await isLoggedIn())) {
     redirect("/");
   }
 
-  let athlete: any = null;
-  let stats: any = null;
-  let activities: any[] = [];
+  let athlete: StravaAthlete | null = null;
+  let stats: StravaAthleteStats | null = null;
+  let activities: StravaActivity[] = [];
   let error: string | null = null;
 
   try {
@@ -25,8 +19,10 @@ export default async function StatsPage() {
     if (!athleteRes.ok) throw new Error(`Strava API error (${athleteRes.status})`);
     athlete = await athleteRes.json();
 
-    const statsRes = await stravaFetch(`/athletes/${athlete.id}/stats`);
-    if (statsRes.ok) stats = await statsRes.json();
+    if (athlete) {
+      const statsRes = await stravaFetch(`/athletes/${athlete.id}/stats`);
+      if (statsRes.ok) stats = await statsRes.json();
+    }
 
     // Fetch a larger window for the trend charts; the table below only
     // shows the most recent handful.
@@ -91,7 +87,7 @@ export default async function StatsPage() {
                   <div className="stat-grid" style={{ marginBottom: 20 }}>
                     <div className="stat">
                       <div className="label">Distance</div>
-                      <div className="value lime">{km(ytd.distance)} km</div>
+                      <div className="value lime">{formatKm(ytd.distance, 1)} km</div>
                     </div>
                     <div className="stat">
                       <div className="label">Rides</div>
@@ -99,7 +95,7 @@ export default async function StatsPage() {
                     </div>
                     <div className="stat">
                       <div className="label">Moving time</div>
-                      <div className="value">{hours(ytd.moving_time)} hrs</div>
+                      <div className="value">{formatHours(ytd.moving_time)} hrs</div>
                     </div>
                     <div className="stat">
                       <div className="label">Elev. gain</div>
@@ -115,7 +111,7 @@ export default async function StatsPage() {
                   <div className="stat-grid">
                     <div className="stat">
                       <div className="label">Distance</div>
-                      <div className="value lime">{km(allTime.distance)} km</div>
+                      <div className="value lime">{formatKm(allTime.distance, 1)} km</div>
                     </div>
                     <div className="stat">
                       <div className="label">Rides</div>
@@ -123,7 +119,7 @@ export default async function StatsPage() {
                     </div>
                     <div className="stat">
                       <div className="label">Moving time</div>
-                      <div className="value">{hours(allTime.moving_time)} hrs</div>
+                      <div className="value">{formatHours(allTime.moving_time)} hrs</div>
                     </div>
                     <div className="stat">
                       <div className="label">Elev. gain</div>
@@ -155,8 +151,8 @@ export default async function StatsPage() {
                     <tr key={a.id}>
                       <td>{new Date(a.start_date_local).toLocaleDateString()}</td>
                       <td style={{ fontFamily: "var(--font-body)" }}>{a.name}</td>
-                      <td>{km(a.distance)} km</td>
-                      <td>{hours(a.moving_time)} hrs</td>
+                      <td>{formatKm(a.distance, 1)} km</td>
+                      <td>{formatHours(a.moving_time)} hrs</td>
                       <td>{Math.round(a.total_elevation_gain)} m</td>
                     </tr>
                   ))}

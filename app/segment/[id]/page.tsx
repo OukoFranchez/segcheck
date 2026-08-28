@@ -1,37 +1,7 @@
 import { redirect } from "next/navigation";
 import { isLoggedIn, stravaFetch } from "@/lib/strava";
-
-function km(meters: number) {
-  return (meters / 1000).toFixed(2);
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-function formatDuration(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function formatAge(iso: string) {
-  const created = new Date(iso).getTime();
-  const now = Date.now();
-  const totalMonths =
-    (new Date(now).getFullYear() - new Date(created).getFullYear()) * 12 +
-    (new Date(now).getMonth() - new Date(created).getMonth());
-  const years = Math.floor(totalMonths / 12);
-  const months = totalMonths % 12;
-  const parts: string[] = [];
-  if (years > 0) parts.push(`${years} yr${years !== 1 ? "s" : ""}`);
-  if (months > 0 || years === 0) parts.push(`${months} mo${months !== 1 ? "s" : ""}`);
-  return parts.join(", ");
-}
+import { StravaSegment, StravaSegmentEffort } from "@/types/strava";
+import { formatKm, formatDate, formatDuration, formatAge } from "@/lib/format";
 
 export default async function SegmentPage({
   params,
@@ -43,8 +13,8 @@ export default async function SegmentPage({
   }
   const { id } = await params;
 
-  let segment: any = null;
-  let efforts: any[] = [];
+  let segment: StravaSegment | null = null;
+  let efforts: StravaSegmentEffort[] = [];
   let error: string | null = null;
   let effortsError: string | null = null;
 
@@ -144,7 +114,7 @@ export default async function SegmentPage({
                 <div className="stat-grid">
                   <div className="stat">
                     <div className="label">Distance</div>
-                    <div className="value lime">{km(segment.distance)} km</div>
+                    <div className="value lime">{formatKm(segment.distance)} km</div>
                   </div>
                   <div className="stat">
                     <div className="label">Avg grade</div>

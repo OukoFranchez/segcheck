@@ -2,14 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-function extractSegmentId(input: string): string | null {
-  const trimmed = input.trim();
-  if (/^\d+$/.test(trimmed)) return trimmed;
-  const match = trimmed.match(/segments\/(\d+)/);
-  if (match) return match[1];
-  return null;
-}
+import { extractSegmentId } from "@/lib/strava";
 
 export default function SegmentSearch() {
   const router = useRouter();
