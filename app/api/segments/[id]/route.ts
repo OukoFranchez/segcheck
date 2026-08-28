@@ -8,6 +8,12 @@ export async function GET(
   try {
     const { id } = await params;
     const res = await stravaFetch(`/segments/${id}`);
+    if (res.status === 429) {
+      return NextResponse.json(
+        { error: "Strava API rate limit exceeded. Please wait 15 minutes before retrying." },
+        { status: 429 }
+      );
+    }
     if (res.status === 404) {
       return NextResponse.json({ error: "Segment not found" }, { status: 404 });
     }
