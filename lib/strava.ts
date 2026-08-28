@@ -7,6 +7,7 @@ const STRAVA_API_BASE = "https://www.strava.com/api/v3";
 const COOKIE_ACCESS = "strava_access_token";
 const COOKIE_REFRESH = "strava_refresh_token";
 const COOKIE_EXPIRES = "strava_expires_at";
+export const COOKIE_OAUTH_STATE = "strava_oauth_state";
 
 function requireEnv(name: string): string {
   const val = process.env[name];
@@ -14,7 +15,7 @@ function requireEnv(name: string): string {
   return val;
 }
 
-export function getAuthorizeUrl(redirectUri: string) {
+export function getAuthorizeUrl(redirectUri: string, state?: string) {
   const clientId = requireEnv("STRAVA_CLIENT_ID");
   const params = new URLSearchParams({
     client_id: clientId,
@@ -22,6 +23,7 @@ export function getAuthorizeUrl(redirectUri: string) {
     redirect_uri: redirectUri,
     approval_prompt: "auto",
     scope: "read,activity:read_all,profile:read_all",
+    ...(state ? { state } : {}),
   });
   return `${STRAVA_AUTH_URL}?${params.toString()}`;
 }
