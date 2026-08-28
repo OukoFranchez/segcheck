@@ -154,3 +154,55 @@ export function extractSegmentId(input: string): string | null {
   if (match) return match[1];
   return null;
 }
+
+export async function resolveSegmentId(input: string): Promise<string | null> {
+  const directId = extractSegmentId(input);
+  if (directId) return directId;
+
+  let urlStr = input.trim();
+  if (!/^https?:\/\//i.test(urlStr)) {
+    urlStr = `https://${urlStr}`;
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(urlStr);
+  } catch {
+    return null;
+  }
+
+  // Prevent SSRF: only allow Strava domains
+  const isStravaHost =
+    parsedUrl.hostname === "strava.app.link" ||
+    parsedUrl.hostname.endsWith(".strava.app.link") ||
+    parsedUrl.hostname === "strava.com" ||
+    parsedUrl.hostname.endsWith(".strava.com");
+
+  if (!isStravaHost) {
+    return null;
+  }
+
+  try {
+    const res = await fetch(parsedUrl.toString(), {
+      method: "GET",
+      redirect: "follow",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+
+    // Check final redirected URL
+    const finalUrlMatch = extractSegmentId(res.url);
+    if (finalUrlMatch) return finalUrlMatch;
+
+    // Check response body for canonical URL or segment links
+    const html = await res.text();
+    const htmlMatch = html.match(/segments\/(\d+)/);
+    if (htmlMatch) return htmlMatch[1];
+  } catch (err) {
+    console.error("Failed to resolve short URL:", err);
+  }
+
+  return null;
+}
