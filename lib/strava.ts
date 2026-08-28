@@ -1,0 +1,147 @@
+import { cookies } from "next/headers";
+
+const STRAVA_AUTH_URL = "https://www.strava.com/oauth/authorize";
+const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
+const STRAVA_API_BASE = "https://www.strava.com/api/v3";
+
+const COOKIE_ACCESS = "strava_access_token";
+const COOKIE_REFRESH = "strava_refresh_token";
+const COOKIE_EXPIRES = "strava_expires_at";
+
+function requireEnv(name: string): string {
+  const val = process.env[name];
+  if (!val) throw new Error(`Missing required env var: ${name}`);
+  return val;
+}
+
+export function getAuthorizeUrl(redirectUri: string) {
+  const clientId = requireEnv("STRAVA_CLIENT_ID");
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: "code",
+    redirect_uri: redirectUri,
+    approval_prompt: "auto",
+    scope: "read,activity:read_all,profile:read_all",
+  });
+  return `${STRAVA_AUTH_URL}?${params.toString()}`;
+}
+
+type TokenResponse = {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
+  athlete?: unknown;
+};
+
+export async function exchangeCodeForToken(code: string): Promise<TokenResponse> {
+  const res = await fetch(STRAVA_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: requireEnv("STRAVA_CLIENT_ID"),
+      client_secret: requireEnv("STRAVA_CLIENT_SECRET"),
+      code,
+      grant_type: "authorization_code",
+    }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Token exchange failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+async function refreshToken(refresh_token: string): Promise<TokenResponse> {
+  const res = await fetch(STRAVA_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: requireEnv("STRAVA_CLIENT_ID"),
+      client_secret: requireEnv("STRAVA_CLIENT_SECRET"),
+      refresh_token,
+      grant_type: "refresh_token",
+    }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Token refresh failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// Cookie helpers ------------------------------------------------------------
+
+export async function setSessionCookies(tokens: TokenResponse) {
+  const store = await cookies();
+  const common = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 90, // 90 days (refresh token lives long)
+  };
+  store.set(COOKIE_ACCESS, tokens.access_token, common);
+  store.set(COOKIE_REFRESH, tokens.refresh_token, common);
+  store.set(COOKIE_EXPIRES, String(tokens.expires_at), common);
+}
+
+export async function clearSessionCookies() {
+  const store = await cookies();
+  store.delete(COOKIE_ACCESS);
+  store.delete(COOKIE_REFRESH);
+  store.delete(COOKIE_EXPIRES);
+}
+
+export async function isLoggedIn(): Promise<boolean> {
+  const store = await cookies();
+  return Boolean(store.get(COOKIE_REFRESH)?.value);
+}
+
+/**
+ * Returns a valid access token, transparently refreshing it (and updating
+ * cookies) if it has expired or is about to.
+ */
+export async function getValidAccessToken(): Promise<string | null> {
+  const store = await cookies();
+  const access = store.get(COOKIE_ACCESS)?.value;
+  const refresh = store.get(COOKIE_REFRESH)?.value;
+  const expiresAt = Number(store.get(COOKIE_EXPIRES)?.value || 0);
+
+  if (!refresh) return null;
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (access && expiresAt - nowSec > 60) {
+    return access;
+  }
+
+  // Expired or about to expire - refresh it.
+  const tokens = await refreshToken(refresh);
+  await setSessionCookies(tokens);
+  return tokens.access_token;
+}
+
+// API call wrapper ------------------------------------------------------------
+
+export async function stravaFetch(path: string, init?: RequestInit) {
+  const token = await getValidAccessToken();
+  if (!token) {
+    throw new Error("NOT_AUTHENTICATED");
+  }
+  const res = await fetch(`${STRAVA_API_BASE}${path}`, {
+    ...init,
+    headers: {
+      ...(init?.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+  return res;
+}
+
+export function extractSegmentId(input: string): string | null {
+  const trimmed = input.trim();
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  const match = trimmed.match(/segments\/(\d+)/);
+  if (match) return match[1];
+  return null;
+}
