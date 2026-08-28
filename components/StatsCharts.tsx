@@ -125,6 +125,10 @@ function fmt(n: number) {
                 axisLine={false}
                 width={44}
                 unit={unit}
+                domain={[
+                  (dataMin: number) => Math.floor(dataMin - dataMin * 0.1),
+                  (dataMax: number) => Math.ceil(dataMax + dataMax * 0.1),
+                ]}
               />
               <Tooltip
                 contentStyle={tooltipStyle}
