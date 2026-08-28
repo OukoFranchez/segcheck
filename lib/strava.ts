@@ -129,9 +129,36 @@ export async function getValidAccessToken(): Promise<string | null> {
   return tokens.access_token;
 }
 
-// API call wrapper ------------------------------------------------------------
+// In-memory TTL cache for static data (like segment metadata) ----------------
+interface CacheItem {
+  body: string;
+  status: number;
+  headers: Record<string, string>;
+  expiresAt: number;
+}
 
-export async function stravaFetch(path: string, init?: RequestInit) {
+const memoryCache = new Map<string, CacheItem>();
+
+export async function stravaFetch(
+  path: string,
+  init?: RequestInit,
+  options?: { ttlMs?: number }
+): Promise<Response> {
+  const isGet = !init?.method || init.method.toUpperCase() === "GET";
+  // Default 1 hour cache for segment details (/segments/:id)
+  const isSegmentMeta = /^\/segments\/\d+$/.test(path);
+  const ttlMs = options?.ttlMs ?? (isSegmentMeta ? 60 * 60 * 1000 : 0);
+
+  if (isGet && ttlMs > 0) {
+    const cached = memoryCache.get(path);
+    if (cached && cached.expiresAt > Date.now()) {
+      return new Response(cached.body, {
+        status: cached.status,
+        headers: cached.headers,
+      });
+    }
+  }
+
   const token = await getValidAccessToken();
   if (!token) {
     throw new Error("NOT_AUTHENTICATED");
@@ -144,6 +171,34 @@ export async function stravaFetch(path: string, init?: RequestInit) {
     },
     cache: "no-store",
   });
+
+  if (res.status === 429) {
+    const usage = res.headers.get("x-ratelimit-usage") || "";
+    const limit = res.headers.get("x-ratelimit-limit") || "";
+    console.warn(`Strava Rate Limit Exceeded (429). Usage: [${usage}], Limit: [${limit}]`);
+  }
+
+  if (isGet && ttlMs > 0 && res.ok) {
+    const cloned = res.clone();
+    const body = await cloned.text();
+    const headers: Record<string, string> = {};
+    res.headers.forEach((val, key) => {
+      headers[key] = val;
+    });
+
+    if (memoryCache.size > 500) {
+      const firstKey = memoryCache.keys().next().value;
+      if (firstKey) memoryCache.delete(firstKey);
+    }
+
+    memoryCache.set(path, {
+      body,
+      status: res.status,
+      headers,
+      expiresAt: Date.now() + ttlMs,
+    });
+  }
+
   return res;
 }
 

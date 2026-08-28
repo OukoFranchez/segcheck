@@ -50,7 +50,9 @@ export default async function SegmentPage({
 
   try {
     const res = await stravaFetch(`/segments/${id}`);
-    if (res.status === 404) {
+    if (res.status === 429) {
+      error = "Strava API rate limit exceeded (100 requests / 15 minutes limit reached). Please wait a few minutes before trying again.";
+    } else if (res.status === 404) {
       error = "Segment not found.";
     } else if (!res.ok) {
       error = `Strava API error (${res.status}). Your app may still be in Single Player Mode — segments outside your own activities may not resolve until Strava approves broader access.`;
