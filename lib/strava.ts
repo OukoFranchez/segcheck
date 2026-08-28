@@ -51,7 +51,7 @@ export async function exchangeCodeForToken(code: string): Promise<TokenResponse>
   return res.json();
 }
 
-async function refreshToken(refresh_token: string): Promise<TokenResponse> {
+export async function refreshToken(refresh_token: string): Promise<TokenResponse> {
   const res = await fetch(STRAVA_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -71,18 +71,25 @@ async function refreshToken(refresh_token: string): Promise<TokenResponse> {
 
 // Cookie helpers ------------------------------------------------------------
 
+export const getCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 90, // 90 days (refresh token lives long)
+});
+
 export async function setSessionCookies(tokens: TokenResponse) {
-  const store = await cookies();
-  const common = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: 60 * 60 * 24 * 90, // 90 days (refresh token lives long)
-  };
-  store.set(COOKIE_ACCESS, tokens.access_token, common);
-  store.set(COOKIE_REFRESH, tokens.refresh_token, common);
-  store.set(COOKIE_EXPIRES, String(tokens.expires_at), common);
+  try {
+    const store = await cookies();
+    const common = getCookieOptions();
+    store.set(COOKIE_ACCESS, tokens.access_token, common);
+    store.set(COOKIE_REFRESH, tokens.refresh_token, common);
+    store.set(COOKIE_EXPIRES, String(tokens.expires_at), common);
+  } catch {
+    // In Server Components, cookies() is read-only.
+    // Middleware handles refreshing and persisting cookies.
+  }
 }
 
 export async function clearSessionCookies() {
