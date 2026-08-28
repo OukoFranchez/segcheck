@@ -8,6 +8,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
 } from "recharts";
 
 type Activity = {
@@ -53,6 +54,18 @@ function ChartBlock({
   emptyMessage: string;
 }) {
   const hasData = data.some((d) => d.value !== null && d.value !== undefined);
+  const values = data
+  .map((d) => d.value)
+  .filter((v): v is number => v !== null && v !== undefined);
+const average = values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
+
+// get max/min and a fmt helper
+const max = values.length ? Math.max(...values) : null;
+const min = values.length ? Math.min(...values) : null;
+
+function fmt(n: number) {
+  return `${Math.round(n * 10) / 10}${unit}`;
+}
 
   return (
     <div className="card">
@@ -62,7 +75,39 @@ function ChartBlock({
       {!hasData ? (
         <div className="empty">{emptyMessage}</div>
       ) : (
-        <div style={{ width: "100%", height: 220 }}>
+        <div style={{ width: "100%", height: 220, position: "relative" }}>
+          <div
+  style={{
+    position: "absolute",
+    top: 0,
+    right: 0,
+    zIndex: 2,
+    display: "flex",
+    gap: 12,
+    background: "rgba(28, 34, 38, 0.85)",
+    border: "1px solid #313a40",
+    borderRadius: 3,
+    padding: "6px 10px",
+    fontFamily: "var(--font-mono)",
+    fontSize: 11,
+  }}
+>
+  {max !== null && (
+    <span style={{ color: "#8b969c" }}>
+      max <span style={{ color: "var(--text)" }}>{fmt(max)}</span>
+    </span>
+  )}
+  {average !== null && (
+    <span style={{ color: "#8b969c" }}>
+      avg <span style={{ color }}>{fmt(average)}</span>
+    </span>
+  )}
+  {min !== null && (
+    <span style={{ color: "#8b969c" }}>
+      min <span style={{ color: "var(--text)" }}>{fmt(min)}</span>
+    </span>
+  )}
+</div>
           <ResponsiveContainer>
             <LineChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid stroke="#313a40" strokeDasharray="3 3" vertical={false} />
@@ -95,6 +140,9 @@ function ChartBlock({
                 dot={{ r: 3, fill: color, strokeWidth: 0 }}
                 connectNulls
               />
+              {average !== null && (
+  <ReferenceLine y={average} stroke="#8b969c" strokeDasharray="4 4" />
+)}
             </LineChart>
           </ResponsiveContainer>
         </div>
